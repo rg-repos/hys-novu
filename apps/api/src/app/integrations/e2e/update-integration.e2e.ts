@@ -1,6 +1,4 @@
-import { EnvironmentRepository, IntegrationRepository } from '@novu/dal';
-import { UserSession } from '@novu/testing';
-import { expect } from 'chai';
+import { CommunityOrganizationRepository, EnvironmentRepository, IntegrationRepository } from '@novu/dal';
 import {
   ChannelTypeEnum,
   ChatProviderIdEnum,
@@ -10,8 +8,10 @@ import {
   ITenantFilterPart,
   PushProviderIdEnum,
 } from '@novu/shared';
+import { UserSession } from '@novu/testing';
+import { expect } from 'chai';
 
-describe('Update Integration - /integrations/:integrationId (PUT)', function () {
+describe('Update Integration - /integrations/:integrationId (PUT) #novu-v2', () => {
   let session: UserSession;
   const integrationRepository = new IntegrationRepository();
   const envRepository = new EnvironmentRepository();
@@ -21,7 +21,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     await session.initialize();
   });
 
-  it('should throw not found exception when integration is not found', async function () {
+  it('should throw not found exception when integration is not found', async () => {
     const integrationId = IntegrationRepository.createObjectId();
     const payload = {
       providerId: EmailProviderIdEnum.SendGrid,
@@ -37,7 +37,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(body.message).to.equal(`Entity with id ${integrationId} not found`);
   });
 
-  it('should update newly created integration', async function () {
+  it('should update newly created integration', async () => {
     const payload = {
       providerId: EmailProviderIdEnum.SendGrid,
       channel: ChannelTypeEnum.EMAIL,
@@ -55,13 +55,15 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     // update integration
     await session.testAgent.put(`/v1/integrations/${integrationId}`).send(payload);
 
-    const integration = (await session.testAgent.get(`/v1/integrations`)).body.data[0];
+    const integration = (await session.testAgent.get(`/v1/integrations`)).body.data.find(
+      (fetchedIntegration) => fetchedIntegration._id === integrationId
+    );
 
     expect(integration.credentials.apiKey).to.equal(payload.credentials.apiKey);
     expect(integration.credentials.secretKey).to.equal(payload.credentials.secretKey);
   });
 
-  it('should update conditions on integration', async function () {
+  it('should update conditions on integration', async () => {
     const payload = {
       providerId: EmailProviderIdEnum.SendGrid,
       channel: ChannelTypeEnum.EMAIL,
@@ -75,7 +77,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
       ],
     };
 
-    const data = (await session.testAgent.get(`/v1/integrations`)).body.data;
+    const { data } = (await session.testAgent.get(`/v1/integrations`)).body;
 
     const integration = data.find((i) => i.primary && i.channel === 'email');
 
@@ -97,7 +99,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect((result?.conditions?.at(0)?.children.at(0) as ITenantFilterPart)?.operator).to.equal('EQUAL');
   });
 
-  it('should return error with malformed conditions', async function () {
+  it('should return error with malformed conditions', async () => {
     const payload = {
       providerId: EmailProviderIdEnum.SendGrid,
       channel: ChannelTypeEnum.EMAIL,
@@ -111,7 +113,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
       ],
     };
 
-    const data = (await session.testAgent.get(`/v1/integrations`)).body.data;
+    const { data } = (await session.testAgent.get(`/v1/integrations`)).body;
 
     const integration = data.find((i) => i.primary && i.channel === 'email');
 
@@ -123,7 +125,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(body.error).to.equal('Bad Request');
   });
 
-  it('should not allow to update the integration with same identifier', async function () {
+  it('should not allow to update the integration with same identifier', async () => {
     const identifier2 = 'identifier2';
     const integrationOne = await integrationRepository.create({
       name: 'Test1',
@@ -154,7 +156,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(body.message).to.equal('Integration with identifier already exists');
   });
 
-  it('should allow updating the integration with just identifier', async function () {
+  it('should allow updating the integration with just identifier', async () => {
     const integrationOne = await integrationRepository.create({
       name: 'Test',
       identifier: 'identifier',
@@ -177,7 +179,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.identifier).to.eq(payload.identifier);
   });
 
-  it('should allow updating the integration with just name', async function () {
+  it('should allow updating the integration with just name', async () => {
     const integrationOne = await integrationRepository.create({
       name: 'Test',
       identifier: 'identifier',
@@ -200,7 +202,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.name).to.eq(payload.name);
   });
 
-  it('should allow updating the integration with just environment', async function () {
+  it('should allow updating the integration with just environment', async () => {
     const integrationOne = await integrationRepository.create({
       name: 'Test',
       identifier: 'identifier',
@@ -223,7 +225,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data._environmentId).to.equal(prodEnv?._id);
   });
 
-  it('should update custom SMTP integration with TLS options successfully', async function () {
+  it('should update custom SMTP integration with TLS options successfully', async () => {
     const nodeMailerProviderPayload = {
       providerId: 'nodemailer',
       channel: 'email',
@@ -275,7 +277,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(nodeMailerIntegration?.active).to.equal(true);
   });
 
-  it('should not calculate primary and priority if active is not defined', async function () {
+  it('should not calculate primary and priority if active is not defined', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -308,7 +310,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.active).to.equal(false);
   });
 
-  it('should not calculate primary and priority if active not changed', async function () {
+  it('should not calculate primary and priority if active not changed', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -340,7 +342,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.active).to.equal(false);
   });
 
-  it('should not calculate primary and priority fields for in-app channel', async function () {
+  it('should not calculate primary and priority fields for in-app channel', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -370,7 +372,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.active).to.equal(true);
   });
 
-  it('should not calculate primary and priority fields for push channel', async function () {
+  it('should not calculate primary and priority fields for push channel', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -400,7 +402,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.active).to.equal(true);
   });
 
-  it('should not calculate primary and priority fields for chat channel', async function () {
+  it('should not calculate primary and priority fields for chat channel', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -430,7 +432,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.active).to.equal(true);
   });
 
-  it('should not set the primary if there are no other active integrations', async function () {
+  it('should not set the primary if there are no other active integrations', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -462,7 +464,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(data.active).to.equal(true);
   });
 
-  it('should not set the primary if there is only Novu active integration', async function () {
+  it('should not set the primary if there is only Novu active integration', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -526,7 +528,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(second.priority).to.equal(1);
   });
 
-  it('should calculate the highest priority but not set primary if there is another active integration', async function () {
+  it('should calculate the highest priority but not set primary if there is another active integration', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -590,7 +592,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(second.priority).to.equal(1);
   });
 
-  it('should calculate the priority but not higher than the primary integration', async function () {
+  it('should calculate the priority but not higher than the primary integration', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -705,7 +707,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(fifth.priority).to.equal(0);
   });
 
-  it('should recalculate the priority when integration is deactivated', async function () {
+  it('should recalculate the priority when integration is deactivated', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -803,7 +805,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(fourth.priority).to.equal(0);
   });
 
-  it('should recalculate the priority when the primary integration is deactivated', async function () {
+  it('should recalculate the priority when the primary integration is deactivated', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,
@@ -901,7 +903,7 @@ describe('Update Integration - /integrations/:integrationId (PUT)', function () 
     expect(fourth.priority).to.equal(0);
   });
 
-  it('should not disable the novu integration and clear the primary flag if the integration is updated', async function () {
+  it('should not disable the novu integration and clear the primary flag if the integration is updated', async () => {
     await integrationRepository.deleteMany({
       _organizationId: session.organization._id,
       _environmentId: session.environment._id,

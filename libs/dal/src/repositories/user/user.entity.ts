@@ -26,11 +26,11 @@ export class UserEntity implements IUserEntity {
 
   resetTokenCount?: IUserResetTokenCount;
 
-  firstName?: string | null;
+  firstName: string;
 
   lastName?: string | null;
 
-  email?: string | null;
+  email: string;
 
   profilePicture?: string | null;
 
@@ -42,6 +42,8 @@ export class UserEntity implements IUserEntity {
 
   createdAt: string;
 
+  updatedAt: string;
+
   showOnBoarding?: boolean;
   showOnBoardingTour?: number;
 
@@ -50,9 +52,13 @@ export class UserEntity implements IUserEntity {
     lastFailedAttempt: string;
   };
 
-  servicesHashes?: { intercom?: string };
+  servicesHashes?: { plain?: string };
 
   jobTitle?: JobTitleEnum;
+
+  hasPassword: boolean;
+
+  externalId?: string;
 }
 
 export type UserDBModel = UserEntity;

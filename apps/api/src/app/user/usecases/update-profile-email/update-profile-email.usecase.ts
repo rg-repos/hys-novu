@@ -1,6 +1,4 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-
-import { UserRepository } from '@novu/dal';
 import {
   AnalyticsService,
   buildAuthServiceKey,
@@ -8,22 +6,26 @@ import {
   decryptApiKey,
   InvalidateCacheService,
 } from '@novu/application-generic';
-import { EnvironmentRepository } from '@novu/dal';
+import { EnvironmentRepository, UserRepository } from '@novu/dal';
 
+import { normalizeEmail } from '@novu/shared';
+import type { UserResponseDto } from '../../dtos/user-response.dto';
+import { BaseUserProfileUsecase } from '../base-user-profile.usecase';
 import { UpdateProfileEmailCommand } from './update-profile-email.command';
-import { normalizeEmail } from '../../../shared/helpers/email-normalization.service';
 
 @Injectable()
-export class UpdateProfileEmail {
+export class UpdateProfileEmail extends BaseUserProfileUsecase {
   constructor(
     private invalidateCache: InvalidateCacheService,
     private readonly userRepository: UserRepository,
     private readonly environmentRepository: EnvironmentRepository,
     @Inject(forwardRef(() => AnalyticsService))
     private analyticsService: AnalyticsService
-  ) {}
+  ) {
+    super();
+  }
 
-  async execute(command: UpdateProfileEmailCommand) {
+  async execute(command: UpdateProfileEmailCommand): Promise<UserResponseDto> {
     const email = normalizeEmail(command.email);
     const user = await this.userRepository.findByEmail(email);
     if (user) throw new BadRequestException('E-mail is invalid or taken');
@@ -60,6 +62,6 @@ export class UpdateProfileEmail {
 
     this.analyticsService.setValue(updatedUser._id, 'email', email);
 
-    return updatedUser;
+    return this.mapToDto(updatedUser);
   }
 }

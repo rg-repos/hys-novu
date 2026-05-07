@@ -1,14 +1,16 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { MessageRepository, SubscriberRepository } from '@novu/dal';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
-  WebSocketsQueueService,
   AnalyticsService,
-  InvalidateCacheService,
   buildFeedKey,
   buildMessageCountKey,
+  InvalidateCacheService,
+  messageWebhookMapper,
+  SendWebhookMessage,
+  WebSocketsQueueService,
 } from '@novu/application-generic';
-import { ChannelTypeEnum, MarkMessagesAsEnum, WebSocketEventEnum } from '@novu/shared';
-
+import { EnvironmentRepository, MessageRepository, SubscriberRepository } from '@novu/dal';
+import { ChannelTypeEnum, MessagesStatusEnum, WebhookEventEnum, WebhookObjectTypeEnum } from '@novu/shared';
+import { mapMarkMessageToWebSocketEvent } from '../../../shared/helpers';
 import { MarkAllMessagesAsCommand } from './mark-all-messages-as.command';
 
 @Injectable()
@@ -19,7 +21,9 @@ export class MarkAllMessagesAs {
     private messageRepository: MessageRepository,
     private webSocketsQueueService: WebSocketsQueueService,
     private subscriberRepository: SubscriberRepository,
-    private analyticsService: AnalyticsService
+    private analyticsService: AnalyticsService,
+    private sendWebhookMessage: SendWebhookMessage,
+    private environmentRepository: EnvironmentRepository
   ) {}
 
   async execute(command: MarkAllMessagesAsCommand): Promise<number> {
@@ -30,13 +34,15 @@ export class MarkAllMessagesAs {
           `please provide a valid subscriber identifier`
       );
     }
-
-    await this.invalidateCache.invalidateQuery({
-      key: buildFeedKey().invalidate({
-        subscriberId: command.subscriberId,
-        _environmentId: command.environmentId,
-      }),
-    });
+    const environment = await this.environmentRepository.findOne(
+      {
+        _id: command.environmentId,
+      },
+      'webhookAppId identifier'
+    );
+    if (!environment) {
+      throw new Error(`Environment not found for id ${command.environmentId}`);
+    }
 
     await this.invalidateCache.invalidateQuery({
       key: buildMessageCountKey().invalidate({
@@ -45,7 +51,7 @@ export class MarkAllMessagesAs {
       }),
     });
 
-    const response = await this.messageRepository.markAllMessagesAs({
+    const updatedMessages = await this.messageRepository.markAllMessagesAs({
       subscriberId: subscriber._id,
       environmentId: command.environmentId,
       markAs: command.markAs,
@@ -53,27 +59,44 @@ export class MarkAllMessagesAs {
       channel: ChannelTypeEnum.IN_APP,
     });
 
-    const isUnreadCountChanged =
-      command.markAs === MarkMessagesAsEnum.READ || command.markAs === MarkMessagesAsEnum.UNREAD;
+    if (command.markAs !== MessagesStatusEnum.UNSEEN) {
+      let eventType = WebhookEventEnum.MESSAGE_SEEN;
+      if (command.markAs === MessagesStatusEnum.READ) {
+        eventType = WebhookEventEnum.MESSAGE_READ;
+      } else if (command.markAs === MessagesStatusEnum.UNREAD) {
+        eventType = WebhookEventEnum.MESSAGE_UNREAD;
+      }
 
-    const countQuery = isUnreadCountChanged ? { read: false } : { seen: false };
+      const webhookPromises = updatedMessages.map((message) =>
+        this.sendWebhookMessage.execute({
+          eventType: eventType,
+          objectType: WebhookObjectTypeEnum.MESSAGE,
+          payload: {
+            object: messageWebhookMapper(message, command.subscriberId),
+          },
+          organizationId: command.organizationId,
+          environmentId: command.environmentId,
+          environment,
+        })
+      );
 
-    const count = await this.messageRepository.getCount(
-      command.environmentId,
-      subscriber._id,
-      ChannelTypeEnum.IN_APP,
-      countQuery
-    );
+      await Promise.all(webhookPromises);
+    }
 
-    this.webSocketsQueueService.add({
-      name: 'sendMessage',
-      data: {
-        event: isUnreadCountChanged ? WebSocketEventEnum.UNREAD : WebSocketEventEnum.UNSEEN,
-        userId: subscriber._id,
-        _environmentId: command.environmentId,
-      },
-      groupId: subscriber._organizationId,
-    });
+    const eventMessage = mapMarkMessageToWebSocketEvent(command.markAs);
+
+    if (eventMessage !== undefined) {
+      this.webSocketsQueueService.add({
+        name: 'sendMessage',
+        data: {
+          event: eventMessage,
+          userId: subscriber._id,
+          _environmentId: command.environmentId,
+          contextKeys: [],
+        },
+        groupId: subscriber._organizationId,
+      });
+    }
 
     this.analyticsService.track(
       `Mark all messages as ${command.markAs}- [Notification Center]`,
@@ -86,6 +109,6 @@ export class MarkAllMessagesAs {
       }
     );
 
-    return response.modified;
+    return updatedMessages.length;
   }
 }

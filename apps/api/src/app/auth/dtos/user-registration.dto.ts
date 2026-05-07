@@ -1,11 +1,6 @@
-import { IsDefined, IsEmail, IsOptional, MinLength, Matches, MaxLength, IsString, IsEnum } from 'class-validator';
-import {
-  JobTitleEnum,
-  passwordConstraints,
-  ProductUseCases,
-  ProductUseCasesEnum,
-  SignUpOriginEnum,
-} from '@novu/shared';
+import { JobTitleEnum, ProductUseCases, passwordConstraints, SignUpOriginEnum } from '@novu/shared';
+import { IsDefined, IsEmail, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+
 export class UserRegistrationBodyDto {
   @IsDefined()
   @IsEmail()
@@ -16,7 +11,6 @@ export class UserRegistrationBodyDto {
   @MaxLength(passwordConstraints.maxLength)
   @Matches(passwordConstraints.pattern, {
     message:
-      // eslint-disable-next-line max-len
       'The password must contain minimum 8 and maximum 64 characters, at least one uppercase letter, one lowercase letter, one number and one special character #?!@$%^&*()-',
   })
   password: string;
@@ -44,6 +38,10 @@ export class UserRegistrationBodyDto {
   @IsString()
   @IsOptional()
   domain?: string;
+
+  @IsString()
+  @IsOptional()
+  invitationToken?: string;
 
   @IsOptional()
   productUseCases?: ProductUseCases;

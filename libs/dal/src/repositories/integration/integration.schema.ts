@@ -1,9 +1,9 @@
-import * as mongoose from 'mongoose';
-import { Schema } from 'mongoose';
-import * as mongooseDelete from 'mongoose-delete';
+import mongoose, { Schema } from 'mongoose';
 
 import { schemaOptions } from '../schema-default.options';
 import { IntegrationDBModel } from './integration.entity';
+
+const mongooseDelete = require('mongoose-delete');
 
 const integrationSchema = new Schema<IntegrationDBModel>(
   {
@@ -15,11 +15,11 @@ const integrationSchema = new Schema<IntegrationDBModel>(
     _organizationId: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
-      index: true,
     },
     providerId: Schema.Types.String,
     channel: Schema.Types.String,
     credentials: {
+      apiVersion: Schema.Types.String,
       apiKey: Schema.Types.String,
       user: Schema.Types.String,
       secretKey: Schema.Types.String,
@@ -59,6 +59,37 @@ const integrationSchema = new Schema<IntegrationDBModel>(
       state: Schema.Types.String,
       externalLink: Schema.Types.String,
       apiToken: Schema.Types.String,
+      channelId: Schema.Types.String,
+      phoneNumberIdentification: Schema.Types.String,
+      accessKey: Schema.Types.String,
+      appSid: Schema.Types.String,
+      senderId: Schema.Types.String,
+      servicePlanId: Schema.Types.String,
+      tenantId: Schema.Types.String,
+      signingSecret: Schema.Types.String,
+      outboundIntegrationId: Schema.Types.String,
+      useFromAddressOverride: Schema.Types.Boolean,
+      fromAddressOverride: Schema.Types.String,
+      AppIOBaseUrl: Schema.Types.String,
+      AppIOSubscriptionId: Schema.Types.String,
+      AppIOBearerToken: Schema.Types.String,
+      AppIOOriginalSignature: Schema.Types.String,
+    },
+    configurations: {
+      inboundWebhookEnabled: Schema.Types.Boolean,
+      inboundWebhookSigningKey: Schema.Types.String,
+      configurationSetName: Schema.Types.String,
+      inboxCount: Schema.Types.String,
+    },
+    provisioning: {
+      status: {
+        type: Schema.Types.String,
+        enum: ['pending', 'ready', 'failed'],
+      },
+      startedAt: Schema.Types.String,
+      completedAt: Schema.Types.String,
+      errorMessage: Schema.Types.String,
+      teamsAppCatalogId: Schema.Types.String,
     },
     active: {
       type: Schema.Types.Boolean,
@@ -91,13 +122,27 @@ const integrationSchema = new Schema<IntegrationDBModel>(
         ],
       },
     ],
+    connected: Schema.Types.Boolean,
+    _parentId: {
+      type: Schema.Types.ObjectId,
+      required: false,
+      default: null,
+    },
   },
   schemaOptions
 );
 
+integrationSchema.index({
+  _organizationId: 1,
+  active: 1,
+});
+
+integrationSchema.index({
+  _environmentId: 1,
+});
+
 integrationSchema.plugin(mongooseDelete, { deletedAt: true, deletedBy: true, overrideMethods: 'all' });
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const Integration =
   (mongoose.models.Integration as mongoose.Model<IntegrationDBModel>) ||
   mongoose.model<IntegrationDBModel>('Integration', integrationSchema);
